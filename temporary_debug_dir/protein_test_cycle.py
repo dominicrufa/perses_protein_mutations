@@ -84,7 +84,7 @@ def generate_atp(phase = 'vacuum'):
                                        forcefield_kwargs = {'removeCMMotion': False, 
                                                             'ewaldErrorTolerance': 1e-4, 
                                                             'nonbondedMethod': app.NoCutoff,
-                                                            'constraints' : app.HBonds, 
+                                                            'constraints' : None, 
                                                             'hydrogenMass' : 4 * unit.amus})
         atp.system = system_generator.build_system(atp.topology) #update the parametrization scheme to amberff14sb
         
@@ -95,7 +95,7 @@ def generate_atp(phase = 'vacuum'):
                                    forcefield_kwargs = {'removeCMMotion': False, 
                                                         'ewaldErrorTolerance': 1e-4, 
                                                         'nonbondedMethod': app.PME,
-                                                        'constraints' : app.HBonds, 
+                                                        'constraints' : None, 
                                                         'hydrogenMass' : 4 * unit.amus})
     
     if phase == 'solvent':
@@ -183,9 +183,9 @@ def generate_top_pos_sys(topology, new_res, system, positions, system_generator)
 def create_hss(reporter_name, hybrid_factory, selection_string ='all', checkpoint_interval = 1, n_states = 13):
     lambda_protocol = LambdaProtocol(functions='default')
     reporter = MultiStateReporter(reporter_name, analysis_particle_indices = hybrid_factory.hybrid_topology.select(selection_string), checkpoint_interval = checkpoint_interval)
-    hss = HybridRepexSampler(mcmc_moves=mcmc.LangevinSplittingDynamicsMove(timestep= 4.0 * unit.femtoseconds,
+    hss = HybridRepexSampler(mcmc_moves=mcmc.LangevinSplittingDynamicsMove(timestep= 0.5 * unit.femtoseconds,
                                                                                  collision_rate=5.0 / unit.picosecond,
-                                                                                 n_steps=250,
+                                                                                 n_steps=500,
                                                                                  reassign_velocities=False,
                                                                                  n_restart_attempts=20,
                                                                                  splitting="V R R R O R R R V",
@@ -236,8 +236,8 @@ def generate_fully_connected_perturbation_graph(dipeptides = ['ALA', 'SER', 'THR
             top_prop, new_positions, htf, local_map_stereo_sidechain, old_oemol, new_oemol =  generate_top_pos_sys(testcase.topology, dipeptide, testcase.system, testcase.positions, sys_gen)
             new_sys, new_pos, new_top = htf._new_system, htf._new_positions, top_prop._new_topology
             graph.nodes[dipeptide][f"{phase}_sys_pos_top"] = (new_sys, new_pos, new_top)
-            graph.edges[('ALA', dipeptide)][f'{phase}_htf'] = htf
             graph.edges[('ALA', dipeptide)][f"map_oldmol_newmol"] = (local_map_stereo_sidechain, old_oemol, new_oemol)
+            graph.edges[('ALA', dipeptide)][f'{phase}_htf'] = htf
 
         
         
@@ -267,27 +267,18 @@ def generate_fully_connected_perturbation_graph(dipeptides = ['ALA', 'SER', 'THR
 
 
 # In[ ]:
-mapping_strength = 'strong'
-import pickle
-from perses.utils.smallmolecules import render_atom_mapping
-graph = generate_fully_connected_perturbation_graph()
-print(f"graph edges: {graph.edges()}")
-for pair in graph.edges():
-    for phase in ['vac', 'sol']:
-        print("Seralizing the system to ", f"{pair}_{phase}" + ".xml")
-        with open(f"{pair[0]}_{pair[1]}.{phase}.{mapping_strength}_map.xml", 'w') as f:
-            hybrid_system = graph.edges[pair][f"{phase}_htf"]._hybrid_system
-            f.write(openmm.openmm.XmlSerializer.serialize(hybrid_system))
+
+
+# graph = generate_fully_connected_perturbation_graph()
+# print(f"graph edges: {graph.edges()}")
+
+# def run_sim(_graph, start_protein, end_protein):
+#     for phase in ['vac', 'sol']:
+#         hss, reporter = create_hss(f"{start_protein}_{end_protein}.{phase}.nc", _graph.edges[(start_protein, end_protein)][f"{phase}_htf"], selection_string = 'protein', checkpoint_interval = 10, n_states = 13)
+#         hss.extend(5000)
         
-        htf = graph.edges[pair][f"{phase}_htf"]
-        htf._topology_proposal._old_networkx_residue.remove_oemols_from_graph()
-        htf._topology_proposal._new_networkx_residue.remove_oemols_from_graph()
-        _map, oldmol, newmol = graph.edges[pair][f"map_oldmol_newmol"]
-        render_atom_mapping(f"{pair[0]}_{pair[1]}.{mapping_strength}_map.png", oldmol, newmol, _map)
-        with open(f"{pair[0]}_{pair[1]}.{phase}.{mapping_strength}_map.pkl", 'wb') as f:
-            pickle.dump(htf, f)
-            
-        
-    
+# run_sim(graph, str(sys.argv[1]), str(sys.argv[2]))
 
     
+
+
